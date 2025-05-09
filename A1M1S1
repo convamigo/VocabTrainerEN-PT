@@ -1,5 +1,7 @@
-# Vocabulary list extracted from the provided engine
-vocabulary = [
+import json
+
+# Original vocabulary list
+vocab = [
     {"word": "Hallo", "definition": "Hello"},
     {"word": "Doei", "definition": "Bye"},
     {"word": "Goedemorgen", "definition": "Good morning"},
@@ -18,10 +20,37 @@ vocabulary = [
     {"word": "Tot ziens!", "definition": "Until next time!"}
 ]
 
-# Write JSON file
-file_path = '/mnt/data/vocabulary.json'
-with open(file_path, 'w', encoding='utf-8') as f:
-    json.dump(vocabulary, f, ensure_ascii=False, indent=2)
+# Alternative translations for each phrase
+alternatives_map = {
+    "Hallo": ["Hi"],
+    "Doei": ["Dag"],
+    "Goedemorgen": ["Goeiemorgen", "Morgen"],
+    "Goedemiddag": ["Middag"],
+    "Goedenavond": ["Avond"],
+    "Dankjewel": ["Dank je", "Bedankt"],
+    "Alsjeblieft": ["Alstublieft"],
+    "Leuk je te ontmoeten!": ["Aangenaam", "Prettig kennis te maken!"],
+    "Hoe gaat het?": ["Hoe is het?", "Alles goed?"],
+    "Met mij gaat het goed.": ["Het gaat goed met mij.", "Ik voel me goed."],
+    "En jij?": ["En met jou?", "Hoe zit het met jou?"],
+    "Ik heet …": ["Mijn naam is …"],
+    "Ik ben … jaar oud.": ["Ik ben … jaar."],
+    "Ik woon in …": ["Ik woon te …"],
+    "Ik kom uit …": ["Ik ben afkomstig uit …"],
+    "Tot ziens!": ["Tot straks!", "We spreken elkaar later!"]
+}
 
-# Display the JSON content for verification
-vocabulary
+# Add the alternatives field
+for entry in vocab:
+    entry["alternatives"] = alternatives_map.get(entry["word"], [])
+
+# Save to a new JSON file
+updated_path = '/mnt/data/vocabulary_updated.json'
+with open(updated_path, 'w', encoding='utf-8') as f:
+    json.dump(vocab, f, ensure_ascii=False, indent=2)
+
+# Display the updated vocabulary
+print(json.dumps(vocab, ensure_ascii=False, indent=2))
+
+# Provide download link
+print(f"\n[Download the updated vocabulary JSON]({updated_path})")
