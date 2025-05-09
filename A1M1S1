@@ -1,0 +1,27 @@
+# Vocabulary list extracted from the provided engine
+vocabulary = [
+    {"word": "Hallo", "definition": "Hello"},
+    {"word": "Doei", "definition": "Bye"},
+    {"word": "Goedemorgen", "definition": "Good morning"},
+    {"word": "Goedemiddag", "definition": "Good afternoon"},
+    {"word": "Goedenavond", "definition": "Good evening"},
+    {"word": "Dankjewel", "definition": "Thank you"},
+    {"word": "Alsjeblieft", "definition": "Please / Here you go!"},
+    {"word": "Leuk je te ontmoeten!", "definition": "Nice to meet you!"},
+    {"word": "Hoe gaat het?", "definition": "How are you?"},
+    {"word": "Met mij gaat het goed.", "definition": "I’m doing well."},
+    {"word": "En jij?", "definition": "What about you?"},
+    {"word": "Ik heet …", "definition": "My name is …"},
+    {"word": "Ik ben … jaar oud.", "definition": "I’m … years old."},
+    {"word": "Ik woon in …", "definition": "I live in ..."},
+    {"word": "Ik kom uit …", "definition": "I come from …"},
+    {"word": "Tot ziens!", "definition": "Until next time!"}
+]
+
+# Write JSON file
+file_path = '/mnt/data/vocabulary.json'
+with open(file_path, 'w', encoding='utf-8') as f:
+    json.dump(vocabulary, f, ensure_ascii=False, indent=2)
+
+# Display the JSON content for verification
+vocabulary
