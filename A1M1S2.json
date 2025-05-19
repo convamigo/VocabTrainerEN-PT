@@ -1,7 +1,3 @@
-import json
-
-# Practice data as a list of dictionaries
-practice_data = [
     {"dutch": "de man", "english": "the man", "example": "De man is een leraar."},
     {"dutch": "de vrouw", "english": "the woman", "example": "De vrouw is een student."},
     {"dutch": "de jongen", "english": "the boy", "example": "De jongen heeft een naam."},
@@ -28,8 +24,3 @@ practice_data = [
     {"dutch": "het antwoord", "english": "the answer", "example": "Jij hebt het antwoord."},
     {"dutch": "de les", "english": "the lesson", "example": "Ik heb Nederlandse les."},
     {"dutch": "de school", "english": "the school", "example": "Convamigo is een school."}
-]
-
-# Save to JSON file
-with open("practice_data.json", "w", encoding="utf-8") as f:
-    json.dump(practice_data, f, ensure_ascii=False, indent=2)
