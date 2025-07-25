@@ -436,57 +436,10 @@
   // Called when the user clicks a term
   function selectOption(div, side) {
     // Clear previous selection of this side
-    document.querySelectorAll(`#match-${side}-list .option.selected`)
-      .forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll(`#match-${side}
 
-    // Mark new selection
-    div.classList.add('selected');
-
-    // Remember it
-    if (side === 'pt') currentPT = div;
-    else currentEN = div;
-
-    // If both sides chosen, immediately validate
-    if (currentPT && currentEN) {
-      const ptText = currentPT.textContent;
-      const enText = currentEN.textContent;
-      // Find the correct mapping
-      const matched = stage3Queue.find(t => t.pt === ptText && t.en === enText);
-      // Apply feedback colors
-      const correctClass = matched ? 'correct' : 'incorrect';
-      [currentPT, currentEN].forEach(el => {
-        el.classList.add(correctClass);
-        el.style.pointerEvents = 'none';
-      });
-      // Reset selections
-      currentPT.classList.remove('selected');
-      currentEN.classList.remove('selected');
-      currentPT = currentEN = null;
-    }
-  }-list .option.selected`)
-      .forEach(el => el.classList.remove('selected'));
-
-    // Mark new selection
-    div.classList.add('selected');
-
-    // Remember it
-   if (side === 'pt') currentPT = div.textContent;
-    else currentEN = div.textContent;
-
-    // If both sides chosen, record and reset for next pair
-    if (currentPT && currentEN) {
-      userPairs.push({ pt: currentPT, en: currentEN });
-      currentPT = currentEN = null;
-      // Optionally visually disable matched items:
-      document.querySelectorAll('.option.selected')
-        .forEach(el => el.classList.add('matched'));
-      document.querySelectorAll('.option.selected')
-        .forEach(el => el.classList.remove('selected'));
-    }
-  }
-
-    // Display match exercise when stage3Queue is ready
-    function renderMatch(){
+  // Display match exercise when stage3Queue is ready
+  function renderMatch(){
     // Track how many pairs to match
     let pairsRemaining = stage3Queue.length;
     
