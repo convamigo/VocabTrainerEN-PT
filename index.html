@@ -487,6 +487,9 @@
 
     // Display match exercise when stage3Queue is ready
     function renderMatch(){
+    // Track how many pairs to match
+    let pairsRemaining = stage3Queue.length;
+    
     // Show match screen
     showScreen(matchScreen);
 
@@ -507,6 +510,34 @@
 
     // Render EN side
     const enList = document.getElementById('match-en-list');
+    enList.innerHTML = '';
+    ens.forEach(en => {
+      const div = document.createElement('div');
+      div.className = 'option';
+      div.textContent = en;
+      div.addEventListener('click', () => selectOption(div, 'en'));
+      enList.appendChild(div);
+    });
+
+    // After match screen is set up, override selectOption to decrement
+    const originalSelect = selectOption;
+    selectOption = function(div, side) {
+      originalSelect(div, side);
+      // After validation, decrement count
+      if (div.classList.contains('correct') || div.classList.contains('incorrect')) {
+        pairsRemaining--;
+        if (pairsRemaining === 0) {
+          // All done, move to next
+          setTimeout(() => nextQuestion(), 500);
+        }
+      }
+    };
+
+    // Reset selectOption back when leaving match screen
+    matchSubmit.addEventListener('click', () => {
+      selectOption = originalSelect;
+    });
+  }
     enList.innerHTML = '';
     ens.forEach(en => {
       const div = document.createElement('div');
