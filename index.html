@@ -443,6 +443,33 @@
     div.classList.add('selected');
 
     // Remember it
+    if (side === 'pt') currentPT = div;
+    else currentEN = div;
+
+    // If both sides chosen, immediately validate
+    if (currentPT && currentEN) {
+      const ptText = currentPT.textContent;
+      const enText = currentEN.textContent;
+      // Find the correct mapping
+      const matched = stage3Queue.find(t => t.pt === ptText && t.en === enText);
+      // Apply feedback colors
+      const correctClass = matched ? 'correct' : 'incorrect';
+      [currentPT, currentEN].forEach(el => {
+        el.classList.add(correctClass);
+        el.style.pointerEvents = 'none';
+      });
+      // Reset selections
+      currentPT.classList.remove('selected');
+      currentEN.classList.remove('selected');
+      currentPT = currentEN = null;
+    }
+  }-list .option.selected`)
+      .forEach(el => el.classList.remove('selected'));
+
+    // Mark new selection
+    div.classList.add('selected');
+
+    // Remember it
    if (side === 'pt') currentPT = div.textContent;
     else currentEN = div.textContent;
 
