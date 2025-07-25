@@ -84,7 +84,18 @@
     .match-item.selected { background: var(--secondary); }
     .match-item.correct  { background: var(--correct-bg); border-color: var(--type-correct); }
     .match-item.incorrect{ background: var(--incorrect-bg); border-color: var(--type-incorrect); }
-    .match-columns { display: flex; justify-content: space-between; }
+    .match-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+#match-container {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
     .option .key { position: absolute; top: 50%; transform: translateY(-50%); left: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--secondary); color: #333; display: flex; align-items: center; justify-content: center; font-size: 0.8em; }
     .progress { width: 100%; background: #ddd; border-radius: 5px; height: 20px; overflow: hidden; position: relative; margin-bottom: 20px; }
     .progress .mcq, .progress .type { position: absolute; top: 0; height: 100%; transition: width 0.3s ease, left 0.3s ease, background-color 0.3s ease; }
