@@ -83,7 +83,7 @@
 }
     .match-item.selected { background: var(--secondary); }
     .match-item.correct  { background: var(--correct-bg); border-color: var(--type-correct); }
-    .match-item.incorrect{ background: var(--incorrect-bg); border-color: var(--type-incorrect); }
+    .match-item.incorrect{ background-color: var(--incorrect-bg) !important; border-color: var(--type-incorrect) !important;
     .match-columns {
   display: flex;
   flex-direction: column;
@@ -121,7 +121,9 @@
 }
 
 .match-item.correct {
-  animation: pop 0.4s ease;
+    background-color: var(--correct-bg) !important;
+    border-color: var(--type-correct) !important;
+    animation: pop 0.4s ease;
 }
 
 .screen.active {
