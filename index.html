@@ -71,6 +71,20 @@
     #term-box { background: var(--primary); padding: 20px; border-radius: 8px; font-size: 1.5em; margin-bottom: 20px; }
     .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .option { background: white; padding: 15px; border-radius: 5px; position: relative; cursor: pointer; border: 1px solid #eeeeee; transition: box-shadow 0.2s ease, border-color 0.2s ease; }
+    /* Matching‐pairs mode */
+    .match-item {
+  flex: 1;
+  padding: 15px;
+  margin: 5px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+    .match-item.selected { background: var(--secondary); }
+    .match-item.correct  { background: var(--correct-bg); border-color: var(--type-correct); }
+    .match-item.incorrect{ background: var(--incorrect-bg); border-color: var(--type-incorrect); }
+    .match-columns { display: flex; justify-content: space-between; }
     .option .key { position: absolute; top: 50%; transform: translateY(-50%); left: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--secondary); color: #333; display: flex; align-items: center; justify-content: center; font-size: 0.8em; }
     .progress { width: 100%; background: #ddd; border-radius: 5px; height: 20px; overflow: hidden; position: relative; margin-bottom: 20px; }
     .progress .mcq, .progress .type { position: absolute; top: 0; height: 100%; transition: width 0.3s ease, left 0.3s ease, background-color 0.3s ease; }
@@ -164,6 +178,13 @@
     </div>
     <button id="dk-btn">Don’t know</button>
   </div>
+  
+  <!-- MATCH SCREEN -->
+  <div id="match-screen" class="screen">
+    <h2>Match the words</h2>
+    <div id="match-container" class="options"></div>
+    <button id="match-done-btn" style="display:none; margin-top:10px;">Done</button>
+  </div>
 
   <div id="end-screen" class="screen">
     <h2>Review Mistakes</h2>
@@ -182,9 +203,6 @@
      </div>
 
   <script>
-      let matchTerms = [];       // Portuguese term objects awaiting match exercise
-      let matchesCompleted = 0;  // Total matches done so far
-
       // We'll load whatever JSON file the URL hash points to (default: basicwords.json)
       let initialTerms = [];
       const dataFile = window.location.hash
@@ -202,11 +220,11 @@
       .catch(err => {
           alert('Failed to load ' + dataFile + ': ' + err);
 });
-    let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, stage3Queue, mistakes, currentTerm, typeCount;
-    const startScreen  = document.getElementById('start-screen'),
-          quizScreen   = document.getElementById('quiz-screen'),
-          matchScreen  = document.getElementById('match-screen'),
-          endScreen    = document.getElementById('end-screen');
+    let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount;
+    const startScreen=document.getElementById('start-screen'),
+          quizScreen=document.getElementById('quiz-screen'),
+          matchScreen=document.getElementById('match-screen'),
+          endScreen=document.getElementById('end-screen');
     const totalCountEl=document.getElementById('total-count'),
           startBtn=document.getElementById('start-btn'),
           retryBtn=document.getElementById('retry-btn'),
@@ -215,9 +233,8 @@
           mcqOptions=document.getElementById('mcq-options');
     const typingArea=document.getElementById('typing-area'),
           typingInput=document.getElementById('typing-input');
-    const enterBtn     = document.getElementById('enter-btn'),
-          dkBtn        = document.getElementById('dk-btn'),
-          matchSubmit  = document.getElementById('match-submit');
+    const enterBtn=document.getElementById('enter-btn'),
+          dkBtn=document.getElementById('dk-btn');
     const mcqBar=document.getElementById('mcq-bar'),
           typeBar=document.getElementById('type-bar');
     const soundCorrect=document.getElementById('sound-correct'),
@@ -246,7 +263,6 @@
       learnedStage1=[]; 
       learnedTyping=[];
       stage2Queue=[];
-      stage3Queue = [];
       if (list.length === initialTerms.length && list.every((t, i) => t === initialTerms[i])) mistakes = [];
       currentTerm=null;
       typeCount=0;
@@ -397,21 +413,16 @@
         if (ok && !learnedTyping.includes(currentTerm)) {
             typeCount++;
             learnedTyping.push(currentTerm);
-            if (typeCount % 5 === 0) {
-         // collect the 5 recently typed terms
-         matchTerms = learnedTyping.slice(-5);
-         return renderMatch();  // jump to matching
-       }
             const index = stage2Queue.indexOf(currentTerm);
             if (index !== -1) stage2Queue.splice(index, 1);
         }
       }
       playSound(ok);
       if (ok) {
-          // add this term to the match pool
-          stage3Queue.push(currentTerm);
           updateProgress();
-          
+          if (typeCount > 0 && typeCount % 5 === 0) {
+              return startMatchExercise();
+          }
       } else {
           // only record a mistake once
           if (!mistakes.includes(currentTerm)) mistakes.push(currentTerm);
@@ -430,95 +441,11 @@
           nextQuestion();
       }, ok ? 1000 : 2000);
     }
-      // Store the current pick for each side
-  let currentPT = null, currentEN = null, userPairs = [];
 
-  // Called when the user clicks a term
-  function selectOption(div, side) {
-    // Clear previous selection of this side
-    document.querySelectorAll(`#match-${side}-list .option.selected`)
-      .forEach(el => el.classList.remove('selected'));
-
-    // Mark new selection
-    div.classList.add('selected');
-
-    // Remember it
-   if (side === 'pt') currentPT = div.textContent;
-    else currentEN = div.textContent;
-
-    // If both sides chosen, record and reset for next pair
-    if (currentPT && currentEN) {
-      userPairs.push({ pt: currentPT, en: currentEN });
-      currentPT = currentEN = null;
-      // Optionally visually disable matched items:
-      document.querySelectorAll('.option.selected')
-        .forEach(el => el.classList.add('matched'));
-      document.querySelectorAll('.option.selected')
-        .forEach(el => el.classList.remove('selected'));
-    }
-  }
-
-    // Display match exercise when stage3Queue is ready
-    function renderMatch(){
-    // Show match screen
-    showScreen(matchScreen);
-
-    // Prepare PT and EN lists in random order
-    const pts = stage3Queue.map(t => t.pt).sort(() => Math.random() - 0.5);
-    const ens = stage3Queue.map(t => t.en).sort(() => Math.random() - 0.5);
-
-    // Render PT side
-    const ptList = document.getElementById('match-pt-list');
-    ptList.innerHTML = '';
-    pts.forEach(pt => {
-      const div = document.createElement('div');
-      div.className = 'option';
-      div.textContent = pt;
-      div.addEventListener('click', () => selectOption(div, 'pt'));
-      ptList.appendChild(div);
-    });
-
-    // Render EN side
-    const enList = document.getElementById('match-en-list');
-    enList.innerHTML = '';
-    ens.forEach(en => {
-      const div = document.createElement('div');
-      div.className = 'option';
-      div.textContent = en;
-      div.addEventListener('click', () => selectOption(div, 'en'));
-      enList.appendChild(div);
-   });
-  }
-
-  // Handle “Submit Matches” clicks
-  matchSubmit.addEventListener('click', () => {
-    // Compare userPairs against the true mappings in stage3Queue
-    let correctCount = 0;
-    stage3Queue.forEach(term => {
-     if (userPairs.find(p => p.pt === term.pt && p.en === term.en)) {
-        correctCount++;
-      } else {
-        mistakes.push(term);
-      }
-    });
-
-    // Feedback (e.g. alert or injecting a message)
-    alert(`You got ${correctCount} out of ${stage3Queue.length} correct.`);
-
-    // Reset for next round
-    stage3Queue = [];
-    userPairs = [];
-    nextQuestion();
-  });
     function nextQuestion(){
         round++;
         hideTyping();
-  // If we’ve got five (or fewer, if that’s all that’s left), launch the match exercise
-  if (stage3Queue.length >= 5 ||
-      (stage1Queue.length === 0 && stage2Queue.length === 0 && stage3Queue.length > 0)
-  ) {
-    return renderMatch();
-  }
+
     // — OVERRIDE: If MCQ queue is empty but there are typing items that are not learned yet,
     //   even if their _readyAt > round, force the last one into typing rather than end.
     if (
@@ -535,73 +462,6 @@
       const { term, mode } = result;
       mode === 'typing' ? renderTyping(term) : renderMCQ(term);
     }
-    
- function renderMatch() {
-   showScreen(matchScreen);
-   const container = document.getElementById('match-container');
-   container.innerHTML = '';
-   // build two shuffled lists
-   const pts = matchTerms.map(t => t.pt).sort(() => Math.random() - 0.5);
-   const ens = matchTerms.map(t => t.en).sort(() => Math.random() - 0.5);
-   pts.forEach(text => {
-     const el = document.createElement('div');
-     el.className = 'option';
-     el.textContent = text;
-     el.dataset.lang = 'pt';
-     container.appendChild(el);
-   });
-   ens.forEach(text => {
-     const el = document.createElement('div');
-     el.className = 'option';
-     el.textContent = text;
-     el.dataset.lang = 'en';
-     container.appendChild(el);
-   });
-   setupMatchHandlers();
- }
- function setupMatchHandlers() {
-   let first = null;
-   document.querySelectorAll('#match-container .option').forEach(el => {
-     el.addEventListener('click', () => {
-       if (el.classList.contains('matched')) return;
-       el.classList.toggle('selected');
-       if (!first && el.dataset.lang === 'pt') {
-         first = el;
-         return;
-       }
-       if (first) {
-         const second = el;
-         const pt = first.textContent;
-         const en = second.textContent;
-         const correct = matchTerms.some(t => t.pt === pt && t.en === en);
-         const color = correct ? 'green' : 'red';
-         [first, second].forEach(box => {
-           box.style.backgroundColor = color;
-           if (correct) box.classList.add('matched');
-         });
-         if (!correct) {
-           setTimeout(() => {
-             [first, second].forEach(box => {
-               box.style.backgroundColor = '';
-               box.classList.remove('selected');
-             });
-             first = null;
-           }, 1500);
-         } else {
-           matchesCompleted++;
-           first = null;
-           // once all 5 pairs done, return to quiz
-           if (matchesCompleted % 5 === 0) {
-             return setTimeout(() => {
-               showScreen(quizScreen);
-               nextQuestion();
-             }, 800);
-           }
-         }
-       }
-     });
-   });
- }
 
     function endSession(){
       showScreen(endScreen);
@@ -614,6 +474,63 @@
     }
 
     function varColor(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    
+    // — MATCH EXERCISE LOGIC —
+let matchPairs, firstSelection;
+
+function startMatchExercise() {
+  showScreen(matchScreen);
+  const sliceCount = Math.min(5, learnedTyping.length);
+  matchPairs = learnedTyping.slice(-sliceCount).map(t => ({ pt: t.pt, en: t.en, matched: false }));
+  renderMatchExercise();
+}
+
+function renderMatchExercise() {
+  const container = document.getElementById('match-container');
+  container.innerHTML = '';
+  const left = document.createElement('div'), right = document.createElement('div');
+  left.className = right.className = 'match-columns';
+  const pts = shuffle(matchPairs.map(p => p.pt));
+  const ens = shuffle(matchPairs.map(p => p.en));
+  pts.forEach(pt => { left.innerHTML += `<div class="match-item" data-val="${pt}">${pt}</div>`; });
+  ens.forEach(en => { right.innerHTML += `<div class="match-item" data-val="${en}">${en}</div>`; });
+  container.appendChild(left);
+  container.appendChild(right);
+  container.querySelectorAll('.match-item').forEach(el => el.addEventListener('click', () => handleMatchClick(el)));
+}
+
+function handleMatchClick(el) {
+  if (el.classList.contains('matched')) return;
+  if (!firstSelection) {
+    firstSelection = el;
+    el.classList.add('selected');
+    return;
+  }
+  const a = firstSelection.dataset.val, b = el.dataset.val;
+  const pairOk = matchPairs.some(p => (p.pt===a && p.en===b) || (p.pt===b && p.en===a));
+  firstSelection.classList.toggle(pairOk ? 'correct':'incorrect');
+  el.classList.toggle(pairOk ? 'correct':'incorrect');
+  if (pairOk) {
+    firstSelection.classList.add('matched');
+    el.classList.add('matched');
+  }
+  setTimeout(() => {
+    firstSelection.classList.remove('selected','incorrect');
+    el.classList.remove('incorrect');
+    firstSelection = null;
+    if (matchPairs.every(p => {
+      const leftEl = document.querySelector(`.match-item[data-val="${p.pt}"]`);
+      return leftEl.classList.contains('matched');
+    })) {
+      showScreen(quizScreen);
+      nextQuestion();
+    }
+  }, pairOk ? 0 : 1500);
+}
+
+function shuffle(arr) {
+  return arr.sort(() => Math.random()-0.5);
+}
 
     document.addEventListener('keydown',e=>{
       if(!quizScreen.classList.contains('active')) return;
