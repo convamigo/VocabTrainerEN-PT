@@ -436,13 +436,30 @@
   // Called when the user clicks a term
   function selectOption(div, side) {
     // Clear previous selection of this side
-    document.querySelectorAll(`#match-${side}
+    document.querySelectorAll(`#match-${side}-list .option.selected`)
+      .forEach(el => el.classList.remove('selected'));
 
-  // Display match exercise when stage3Queue is ready
-  function renderMatch(){
-    // Track how many pairs to match
-    let pairsRemaining = stage3Queue.length;
-    
+    // Mark new selection
+    div.classList.add('selected');
+
+    // Remember it
+   if (side === 'pt') currentPT = div.textContent;
+    else currentEN = div.textContent;
+
+    // If both sides chosen, record and reset for next pair
+    if (currentPT && currentEN) {
+      userPairs.push({ pt: currentPT, en: currentEN });
+      currentPT = currentEN = null;
+      // Optionally visually disable matched items:
+      document.querySelectorAll('.option.selected')
+        .forEach(el => el.classList.add('matched'));
+      document.querySelectorAll('.option.selected')
+        .forEach(el => el.classList.remove('selected'));
+    }
+  }
+
+    // Display match exercise when stage3Queue is ready
+    function renderMatch(){
     // Show match screen
     showScreen(matchScreen);
 
@@ -463,34 +480,6 @@
 
     // Render EN side
     const enList = document.getElementById('match-en-list');
-    enList.innerHTML = '';
-    ens.forEach(en => {
-      const div = document.createElement('div');
-      div.className = 'option';
-      div.textContent = en;
-      div.addEventListener('click', () => selectOption(div, 'en'));
-      enList.appendChild(div);
-    });
-
-    // After match screen is set up, override selectOption to decrement
-    const originalSelect = selectOption;
-    selectOption = function(div, side) {
-      originalSelect(div, side);
-      // After validation, decrement count
-      if (div.classList.contains('correct') || div.classList.contains('incorrect')) {
-        pairsRemaining--;
-        if (pairsRemaining === 0) {
-          // All done, move to next
-          setTimeout(() => nextQuestion(), 500);
-        }
-      }
-    };
-
-    // Reset selectOption back when leaving match screen
-    matchSubmit.addEventListener('click', () => {
-      selectOption = originalSelect;
-    });
-  }
     enList.innerHTML = '';
     ens.forEach(en => {
       const div = document.createElement('div');
