@@ -135,7 +135,13 @@
     padding: 12px;
   }
 }
-  </style>
+    /* Match screen layout */
+  #match-screen { display: flex; flex-direction: row; justify-content: space-between; gap: 10px; }
+  #match-screen .options { display: flex; flex-direction: column; width: 45%; }
+  .option.selected { background: var(--secondary); }
+  .option.matched-correct { background: var(--correct-bg); }
+  .option.matched-incorrect { background: var(--incorrect-bg); }
+</style>
 </head>
 <body>
     <div class="container">
@@ -431,12 +437,40 @@
       }, ok ? 1000 : 2000);
     }
       // Store the current pick for each side
-  let currentPT = null, currentEN = null, userPairs = [];
+  let currentPT = null, currentEN = null, currentPTEl = null, currentENEl = null, userPairs = [];"
 
   // Called when the user clicks a term
   function selectOption(div, side) {
     // Clear previous selection of this side
     document.querySelectorAll(`#match-${side}-list .option.selected`)
+      .forEach(el => el.classList.remove('selected'));
+
+    // Mark new selection
+    div.classList.add('selected');
+
+    // Remember element and text
+    if (side === 'pt') {
+      currentPT = div.textContent;
+      currentPTEl = div;
+    } else {
+      currentEN = div.textContent;
+      currentENEl = div;
+    }
+
+    // If both sides chosen, immediately check
+    if (currentPT && currentEN) {
+      const isCorrect = stage3Queue.some(t => t.pt === currentPT && t.en === currentEN);
+      // Color both sides
+      const cls = isCorrect ? 'matched-correct' : 'matched-incorrect';
+      currentPTEl.classList.add(cls);
+      currentENEl.classList.add(cls);
+      playSound(isCorrect);
+      if (!isCorrect) mistakes.push(currentTerm);
+      // Reset selections
+      currentPT = currentEN = null;
+      currentPTEl = currentENEl = null;
+    }
+  }"-list .option.selected`)
       .forEach(el => el.classList.remove('selected'));
 
     // Mark new selection
