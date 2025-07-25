@@ -135,13 +135,7 @@
     padding: 12px;
   }
 }
-    /* Match screen layout */
-  #match-screen { display: flex; flex-direction: row; justify-content: space-between; gap: 10px; }
-  #match-screen .options { display: flex; flex-direction: column; width: 45%; }
-  .option.selected { background: var(--secondary); }
-  .option.matched-correct { background: var(--correct-bg); }
-  .option.matched-incorrect { background: var(--incorrect-bg); }
-</style>
+  </style>
 </head>
 <body>
     <div class="container">
@@ -170,14 +164,6 @@
     </div>
     <button id="dk-btn">Don’t know</button>
   </div>
-  
-  <!-- Match Screen for pairing exercise -->
-  <div id="match-screen" class="screen">
-    <h2>Match the Pairs</h2>
-    <div class="options" id="match-pt-list"></div>
-    <div class="options" id="match-en-list"></div>
-    <button id="match-submit" class="same-size-btn">Submit Matches</button>
-  </div>
 
   <div id="end-screen" class="screen">
     <h2>Review Mistakes</h2>
@@ -196,6 +182,9 @@
      </div>
 
   <script>
+      let matchTerms = [];       // Portuguese term objects awaiting match exercise
+      let matchesCompleted = 0;  // Total matches done so far
+
       // We'll load whatever JSON file the URL hash points to (default: basicwords.json)
       let initialTerms = [];
       const dataFile = window.location.hash
@@ -408,6 +397,11 @@
         if (ok && !learnedTyping.includes(currentTerm)) {
             typeCount++;
             learnedTyping.push(currentTerm);
+            if (typeCount % 5 === 0) {
+         // collect the 5 recently typed terms
+         matchTerms = learnedTyping.slice(-5);
+         return renderMatch();  // jump to matching
+       }
             const index = stage2Queue.indexOf(currentTerm);
             if (index !== -1) stage2Queue.splice(index, 1);
         }
@@ -437,40 +431,12 @@
       }, ok ? 1000 : 2000);
     }
       // Store the current pick for each side
-  let currentPT = null, currentEN = null, currentPTEl = null, currentENEl = null, userPairs = [];"
+  let currentPT = null, currentEN = null, userPairs = [];
 
   // Called when the user clicks a term
   function selectOption(div, side) {
     // Clear previous selection of this side
     document.querySelectorAll(`#match-${side}-list .option.selected`)
-      .forEach(el => el.classList.remove('selected'));
-
-    // Mark new selection
-    div.classList.add('selected');
-
-    // Remember element and text
-    if (side === 'pt') {
-      currentPT = div.textContent;
-      currentPTEl = div;
-    } else {
-      currentEN = div.textContent;
-      currentENEl = div;
-    }
-
-    // If both sides chosen, immediately check
-    if (currentPT && currentEN) {
-      const isCorrect = stage3Queue.some(t => t.pt === currentPT && t.en === currentEN);
-      // Color both sides
-      const cls = isCorrect ? 'matched-correct' : 'matched-incorrect';
-      currentPTEl.classList.add(cls);
-      currentENEl.classList.add(cls);
-      playSound(isCorrect);
-      if (!isCorrect) mistakes.push(currentTerm);
-      // Reset selections
-      currentPT = currentEN = null;
-      currentPTEl = currentENEl = null;
-    }
-  }"-list .option.selected`)
       .forEach(el => el.classList.remove('selected'));
 
     // Mark new selection
@@ -569,6 +535,73 @@
       const { term, mode } = result;
       mode === 'typing' ? renderTyping(term) : renderMCQ(term);
     }
+    
+ function renderMatch() {
+   showScreen(matchScreen);
+   const container = document.getElementById('match-container');
+   container.innerHTML = '';
+   // build two shuffled lists
+   const pts = matchTerms.map(t => t.pt).sort(() => Math.random() - 0.5);
+   const ens = matchTerms.map(t => t.en).sort(() => Math.random() - 0.5);
+   pts.forEach(text => {
+     const el = document.createElement('div');
+     el.className = 'option';
+     el.textContent = text;
+     el.dataset.lang = 'pt';
+     container.appendChild(el);
+   });
+   ens.forEach(text => {
+     const el = document.createElement('div');
+     el.className = 'option';
+     el.textContent = text;
+     el.dataset.lang = 'en';
+     container.appendChild(el);
+   });
+   setupMatchHandlers();
+ }
+ function setupMatchHandlers() {
+   let first = null;
+   document.querySelectorAll('#match-container .option').forEach(el => {
+     el.addEventListener('click', () => {
+       if (el.classList.contains('matched')) return;
+       el.classList.toggle('selected');
+       if (!first && el.dataset.lang === 'pt') {
+         first = el;
+         return;
+       }
+       if (first) {
+         const second = el;
+         const pt = first.textContent;
+         const en = second.textContent;
+         const correct = matchTerms.some(t => t.pt === pt && t.en === en);
+         const color = correct ? 'green' : 'red';
+         [first, second].forEach(box => {
+           box.style.backgroundColor = color;
+           if (correct) box.classList.add('matched');
+         });
+         if (!correct) {
+           setTimeout(() => {
+             [first, second].forEach(box => {
+               box.style.backgroundColor = '';
+               box.classList.remove('selected');
+             });
+             first = null;
+           }, 1500);
+         } else {
+           matchesCompleted++;
+           first = null;
+           // once all 5 pairs done, return to quiz
+           if (matchesCompleted % 5 === 0) {
+             return setTimeout(() => {
+               showScreen(quizScreen);
+               nextQuestion();
+             }, 800);
+           }
+         }
+       }
+     });
+   });
+ }
 
     function endSession(){
       showScreen(endScreen);
