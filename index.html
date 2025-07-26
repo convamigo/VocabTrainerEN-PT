@@ -135,6 +135,14 @@
     padding: 40px;
   }
 
+  /* Volume slider: hidden by default, visible on hover */
+  #volume-slider {
+    display: none;
+  }
+  #volume-control:hover #volume-slider {
+    display: block;
+  }
+
   .option {
     font-size: 1.2em;
     padding: 20px;
@@ -210,7 +218,7 @@
      <button id="volume-toggle" style="background: none; border: none; cursor: pointer; padding: 0;">
          <img src="https://www.convamigo.com/wp-content/uploads/2025/07/Untitled-1.png" alt="Volume" style="height: 24px; width: auto;">
          </button>
-     <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="1" style="display: none; margin-top: 8px;">
+  <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="1" style="margin-top: 8px;">
      </div>
 
   <script>
@@ -232,6 +240,8 @@
           alert('Failed to load ' + dataFile + ': ' + err);
 });
     let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount;
+    // timeout id for typing feedback; allows override by "I was right" button
+    let typingTimeout;
     const startScreen=document.getElementById('start-screen'),
           quizScreen=document.getElementById('quiz-screen'),
           matchScreen=document.getElementById('match-screen'),
@@ -258,10 +268,21 @@
           });
           
     const volumeToggle = document.getElementById('volume-toggle');
-          volumeToggle.addEventListener('click', () => {
-    const visible = volumeSlider.style.display !== 'none';
-          volumeSlider.style.display = visible ? 'none' : 'block';
-          });
+    // store the last non-zero volume to restore on unmute
+    let prevVolume = parseFloat(volumeSlider.value);
+    volumeToggle.addEventListener('click', () => {
+      const currentVolume = parseFloat(volumeSlider.value);
+      if (currentVolume > 0) {
+        // mute: remember current volume and set to 0
+        prevVolume = currentVolume;
+        volumeSlider.value = 0;
+      } else {
+        // unmute: restore previous volume or default to full volume
+        volumeSlider.value = prevVolume || 1;
+      }
+      // trigger volume update
+      volumeSlider.dispatchEvent(new Event('input'));
+    });
 
     function showScreen(screen){
       [startScreen, quizScreen, matchScreen, endScreen].forEach(s => s.classList.remove('active'));
@@ -420,50 +441,13 @@
         enterBtn.disabled   = true;
         dkBtn.disabled      = true;
       let ok;
-      if(action==='dk'){
-        // treat "don't know" as incorrect; neutral bar
-        ok=false;
-        resetTypeBar('--type-dk');
-      } else {
-        // sanitize inputs by removing punctuation and normalizing spaces
-        // helper to remove punctuation and normalize spaces, keeping alphanumeric and spaces only
-        const sanitize = (str) => str.toLowerCase()
-          .replace(/[^a-z0-9 ]/g, '')
-          .replace(/\s+/g, ' ').trim();
-        const vRaw = typingInput.value.trim().toLowerCase();
-        const fRaw = currentTerm.en.toLowerCase();
-        // remove parenthetical hints from the correct answer
-        const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
-        const v = sanitize(vRaw);
-        const f = sanitize(fRaw);
-        const s = sanitize(sRaw);
-        // compute simple Levenshtein distance (limited to distance <=1 for efficiency)
-        function editDistanceOne(a, b) {
-          // if difference in length >1, cannot be within one edit
-          if (Math.abs(a.length - b.length) > 1) return false;
-          // ensure a is shorter or equal length
-          if (a.length > b.length) [a, b] = [b, a];
-          let i = 0, j = 0, edits = 0;
-          while (i < a.length && edits <= 1) {
-            if (a[i] === b[j]) { i++; j++; continue; }
-            edits++;
-            if (a.length === b.length) {
-              // substitution
-              i++; j++;
-            } else {
-              // insertion in b or deletion in a
-              j++;
-            }
-          }
-          // account for trailing extra char
-          if (edits <= 1) edits += (b.length - j);
-          return edits <= 1;
-        }
-        // evaluate correctness: exact match or within one edit distance
-        ok = (v === f || v === s || editDistanceOne(v, f) || editDistanceOne(v, s));
+      if(action==='dk'){ ok=false; resetTypeBar('--type-dk'); }
+      else{
+        const v=typingInput.value.trim().toLowerCase(), f=currentTerm.en.toLowerCase();
+        const s=f.replace(/\s*\([^)]*\)\s*/g,' ').trim();
+        ok=(v===f||v===s);
         resetTypeBar(ok ? '--type-correct' : '--type-incorrect');
-        // visually mark the input
-        typingInput.style.backgroundColor = ok ? '#dcedc8' : '#ffcdd2';
+        typingInput.style.backgroundColor = ok ? '#dcedc8' : '#ffcdd2'; 
         if (ok && !learnedTyping.includes(currentTerm)) {
             typeCount++;
             learnedTyping.push(currentTerm);
@@ -471,39 +455,175 @@
             if (index !== -1) stage2Queue.splice(index, 1);
         }
       }
-      // play appropriate sound
       playSound(ok);
-      // handle logging mistakes and queueing when incorrect (including DK)
+      if (ok) {
+          updateProgress();
+          if (typeCount > 0 && typeCount % 5 === 0) {
+              return startMatchExercise();
+          }
+      } else {
+          // only record a mistake once
+          if (!mistakes.includes(currentTerm)) mistakes.push(currentTerm);
+          // re-queue into typing phase (always)
+          stage2Queue.unshift(currentTerm);
+          // show correct answer below
+          const corr = document.createElement('div');
+          corr.className = 'correct-text';
+          corr.style.background = 'yellow';
+          corr.style.marginTop = '10px';
+          corr.textContent = currentTerm.en;
+          typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
+      }
+      setTimeout(() => {
+          typingInput.style.backgroundColor = ''; // reset background
+          nextQuestion();
+      }, ok ? 1000 : 2000);
+    }
+
+    // New handleTyping overrides previous definition to support approximate matching,
+    // delay before match rounds, neutral bar reset, and override button.
+    function handleTyping(action) {
+      // Logging for debugging
+      console.log(
+        'handleTyping called:',
+        'action=', action,
+        'round=', round,
+        'queue ready?=', stage2Queue.map(t => t._readyAt <= round)
+      );
+      // Disable further typing or DK clicks
+      typingInput.disabled = true;
+      enterBtn.disabled   = true;
+      dkBtn.disabled      = true;
+      let ok;
+      if (action === 'dk') {
+        ok = false;
+        resetTypeBar('--type-dk');
+      } else {
+        // Helper to sanitize strings: remove punctuation and normalize spaces
+        const sanitize = (str) => str.toLowerCase()
+          .replace(/[^a-z0-9 ]/g, '')
+          .replace(/\s+/g, ' ').trim();
+        const vRaw = typingInput.value.trim().toLowerCase();
+        const fRaw = currentTerm.en.toLowerCase();
+        // Remove parenthetical hints from the correct answer
+        const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+        const v = sanitize(vRaw);
+        const f = sanitize(fRaw);
+        const s = sanitize(sRaw);
+        // Compute edit distance allowing one edit difference
+        function editDistanceOne(a, b) {
+          if (Math.abs(a.length - b.length) > 1) return false;
+          if (a.length > b.length) [a, b] = [b, a];
+          let i = 0, j = 0, edits = 0;
+          while (i < a.length && edits <= 1) {
+            if (a[i] === b[j]) { i++; j++; continue; }
+            edits++;
+            if (a.length === b.length) {
+              i++; j++;
+            } else {
+              j++;
+            }
+          }
+          if (edits <= 1) edits += (b.length - j);
+          return edits <= 1;
+        }
+        ok = (v === f || v === s || editDistanceOne(v, f) || editDistanceOne(v, s));
+        // Set bar colour based on correctness
+        resetTypeBar(ok ? '--type-correct' : '--type-incorrect');
+        // Highlight the input
+        typingInput.style.backgroundColor = ok ? '#dcedc8' : '#ffcdd2';
+        if (ok && !learnedTyping.includes(currentTerm)) {
+          typeCount++;
+          learnedTyping.push(currentTerm);
+          const idx = stage2Queue.indexOf(currentTerm);
+          if (idx !== -1) stage2Queue.splice(idx, 1);
+        }
+      }
+      // Play feedback sound
+      playSound(ok);
       if (!ok) {
+        // Record mistake if not already present
         if (!mistakes.includes(currentTerm)) mistakes.push(currentTerm);
+        // Re-queue the term into the typing queue
         stage2Queue.unshift(currentTerm);
-        // show the correct answer below in yellow
+        // Create a container to display the correct answer and override option
         const corr = document.createElement('div');
         corr.className = 'correct-text';
         corr.style.background = 'yellow';
         corr.style.marginTop = '10px';
-        corr.textContent = currentTerm.en;
+        const answerSpan = document.createElement('span');
+        answerSpan.textContent = currentTerm.en;
+        corr.appendChild(answerSpan);
+        // Create "I was right" button to override the mistake
+        const overrideBtn = document.createElement('button');
+        overrideBtn.textContent = 'I was right';
+        overrideBtn.style.marginLeft = '10px';
+        overrideBtn.style.padding = '6px 10px';
+        overrideBtn.style.fontSize = '0.8em';
+        overrideBtn.addEventListener('click', () => {
+          // Cancel any pending timeout
+          if (typingTimeout) {
+            clearTimeout(typingTimeout);
+            typingTimeout = null;
+          }
+          // Remove the term from the mistakes array
+          const mi = mistakes.indexOf(currentTerm);
+          if (mi !== -1) mistakes.splice(mi, 1);
+          // Mark as learned if not already
+          if (!learnedTyping.includes(currentTerm)) {
+            typeCount++;
+            learnedTyping.push(currentTerm);
+            const id = stage2Queue.indexOf(currentTerm);
+            if (id !== -1) stage2Queue.splice(id, 1);
+          }
+          // Update progress bar
+          updateProgress();
+          // Clean up the override prompt
+          corr.remove();
+          // Provide positive feedback
+          typingInput.style.backgroundColor = '#dcedc8';
+          resetTypeBar('--type-correct');
+          playSound(true);
+          // Decide next action: start match or proceed to next question
+          if (typeCount > 0 && typeCount % 5 === 0) {
+            typingTimeout = setTimeout(() => {
+              typingInput.style.backgroundColor = '';
+              resetTypeBar('--type-dk');
+              startMatchExercise();
+            }, 2000);
+          } else {
+            typingTimeout = setTimeout(() => {
+              typingInput.style.backgroundColor = '';
+              nextQuestion();
+            }, 1000);
+          }
+        });
+        corr.appendChild(overrideBtn);
         typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
       } else {
-        // update progress only on correct answers
+        // For correct answers, update the progress bar
         updateProgress();
       }
-      // decide whether to start match exercise
-      if (ok && typeCount > 0 && typeCount % 5 === 0) {
-        // delay match exercise to allow users to see correctness feedback
-        setTimeout(() => {
-          // clear the input background and reset bar to neutral before starting match
+      // Schedule the next step if the override has not been used
+      if (ok) {
+        if (typeCount > 0 && typeCount % 5 === 0) {
+          typingTimeout = setTimeout(() => {
+            typingInput.style.backgroundColor = '';
+            resetTypeBar('--type-dk');
+            startMatchExercise();
+          }, 2000);
+          return;
+        }
+        typingTimeout = setTimeout(() => {
           typingInput.style.backgroundColor = '';
-          resetTypeBar('--type-dk');
-          startMatchExercise();
+          nextQuestion();
+        }, 1000);
+      } else {
+        typingTimeout = setTimeout(() => {
+          typingInput.style.backgroundColor = '';
+          nextQuestion();
         }, 2000);
-        return;
       }
-      // schedule next question with appropriate delay
-      setTimeout(() => {
-        typingInput.style.backgroundColor = '';
-        nextQuestion();
-      }, ok ? 1000 : 2000);
     }
 
     function nextQuestion(){
@@ -552,9 +672,9 @@
 
     function varColor(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
     
-// — MATCH EXERCISE LOGIC —
+    // — MATCH EXERCISE LOGIC —
 let matchPairs, firstSelection;
-// Freeze flag to temporarily disable clicks when a mismatch occurs
+// Flag to freeze click interactions during mismatch feedback in the match round
 let freezeMatch = false;
 
 function startMatchExercise() {
@@ -579,48 +699,28 @@ function renderMatchExercise() {
 }
 
 function handleMatchClick(el) {
-  // prevent interactions if a mismatch is being displayed
-  if (freezeMatch) return;
-  // ignore already matched items
   if (el.classList.contains('matched')) return;
-  // first click selects the first item
   if (!firstSelection) {
     firstSelection = el;
     el.classList.add('selected');
     return;
   }
-  // evaluate the pair
-  const a = firstSelection.dataset.val;
-  const b = el.dataset.val;
-  const pairOk = matchPairs.some(p => (p.pt === a && p.en === b) || (p.pt === b && p.en === a));
-  // visually mark result on both selections
-  firstSelection.classList.toggle(pairOk ? 'correct' : 'incorrect');
-  el.classList.toggle(pairOk ? 'correct' : 'incorrect');
-  // play sound for correctness/incorrectness
-  playSound(pairOk);
+  const a = firstSelection.dataset.val, b = el.dataset.val;
+  const pairOk = matchPairs.some(p => (p.pt===a && p.en===b) || (p.pt===b && p.en===a));
+  firstSelection.classList.toggle(pairOk ? 'correct':'incorrect');
+  el.classList.toggle(pairOk ? 'correct':'incorrect');
   if (pairOk) {
     firstSelection.classList.add('matched');
     el.classList.add('matched');
-  } else {
-    // freeze additional clicks until the mismatch is cleared
-    freezeMatch = true;
   }
-  // schedule cleanup
   setTimeout(() => {
-    // remove temporary classes
-    firstSelection.classList.remove('selected', 'incorrect');
+    firstSelection.classList.remove('selected','incorrect');
     el.classList.remove('incorrect');
-    // allow further clicks after mismatch delay
-    freezeMatch = false;
-    // reset selection
     firstSelection = null;
-    // if all pairs matched, return to quiz
     if (matchPairs.every(p => {
       const leftEl = document.querySelector(`.match-item[data-val="${p.pt}"]`);
       return leftEl.classList.contains('matched');
     })) {
-      // reset type bar to neutral after match round
-      resetTypeBar('--type-dk');
       showScreen(quizScreen);
       nextQuestion();
     }
@@ -629,6 +729,59 @@ function handleMatchClick(el) {
 
 function shuffle(arr) {
   return arr.sort(() => Math.random()-0.5);
+}
+
+// Override handleMatchClick to add freeze logic, sounds, and mistake recording
+function handleMatchClick(el) {
+  // prevent interactions if mismatch feedback is active
+  if (freezeMatch) return;
+  // ignore already matched items
+  if (el.classList.contains('matched')) return;
+  // first selection just selects the item
+  if (!firstSelection) {
+    firstSelection = el;
+    el.classList.add('selected');
+    return;
+  }
+  const a = firstSelection.dataset.val;
+  const b = el.dataset.val;
+  const pairOk = matchPairs.some(p => (p.pt === a && p.en === b) || (p.pt === b && p.en === a));
+  // mark visual feedback
+  firstSelection.classList.toggle(pairOk ? 'correct' : 'incorrect');
+  el.classList.toggle(pairOk ? 'correct' : 'incorrect');
+  // play sound based on correctness
+  playSound(pairOk);
+  if (pairOk) {
+    firstSelection.classList.add('matched');
+    el.classList.add('matched');
+  } else {
+    // freeze clicking during mismatch display
+    freezeMatch = true;
+    // record mismatch selections as mistakes for redo
+    [a, b].forEach(val => {
+      const term = initialTerms.find(t => t.pt === val || t.en === val);
+      if (term && !mistakes.includes(term)) mistakes.push(term);
+    });
+  }
+  setTimeout(() => {
+    // clear temporary classes
+    firstSelection.classList.remove('selected', 'incorrect');
+    el.classList.remove('incorrect');
+    // unfreeze after mismatch delay
+    if (!pairOk) freezeMatch = false;
+    // reset selection state
+    firstSelection = null;
+    // if all pairs are matched, go back to quiz
+    if (matchPairs.every(p => {
+      const leftEl = document.querySelector(`.match-item[data-val="${p.pt}"]`);
+      return leftEl && leftEl.classList.contains('matched');
+    })) {
+      // reset bar to neutral before resuming quiz
+      resetTypeBar('--type-dk');
+      showScreen(quizScreen);
+      nextQuestion();
+    }
+  }, pairOk ? 0 : 1500);
 }
 
     document.addEventListener('keydown',e=>{
