@@ -226,7 +226,7 @@
       let initialTerms = [];
       const dataFile = window.location.hash
       ? window.location.hash.substring(1)
-      : 'ACOCE1-25.json';
+      : 'basicwords.json';
       fetch(dataFile)
       .then(res => res.json())
       .then(data => {
