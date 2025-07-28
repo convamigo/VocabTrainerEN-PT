@@ -233,7 +233,7 @@
       .catch(err => {
           alert('Failed to load ' + dataFile + ': ' + err);
 });
-    let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount;
+    let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount, round;
     const startScreen=document.getElementById('start-screen'),
           quizScreen=document.getElementById('quiz-screen'),
           matchScreen=document.getElementById('match-screen'),
@@ -312,24 +312,13 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function getDistractors(correct){
-      const pool=terms.map(t=>t.en).filter(e=>e!==correct), picks=[];
+        const pool = terms.map(t => t.pt).filter(e => e !== correct); picks=[];
       while(picks.length<3){
         const v=pool[Math.floor(Math.random()*pool.length)];
         if(!picks.includes(v)) picks.push(v);
       }
       return picks;
     }
-    
-    // Pick 3 random *Portuguese* distractors for a given correct PT term
-function getPTDistractors(correctPT) {
-  const pool = terms.map(t => t.pt).filter(pt => pt !== correctPT);
-  const picks = [];
-  while (picks.length < 3) {
-    const v = pool[Math.floor(Math.random() * pool.length)];
-    if (!picks.includes(v)) picks.push(v);
-  }
-  return picks;
-}
 
     function pickNext(){
       let mode;
@@ -366,12 +355,21 @@ function getPTDistractors(correctPT) {
      i = Math.floor(Math.random() * pool.length);
    }
  }
-      return {term:pool.splice(i,1)[0],mode};
+      // extract the chosen term
+  const selected = pool.splice(i, 1)[0];
+  // if we were pulling from typing, also remove it from the real queue
+  if (mode === 'typing') {
+    const idx = stage2Queue.indexOf(selected);
+   if (idx > -1) stage2Queue.splice(idx, 1);
+  }
+  return { term: selected, mode };
     }
 
     function renderMCQ(term){
-      currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
-  [term.pt, ...getPTDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+      currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`; mcqOptions.innerHTML='';
+      document.querySelectorAll('#quiz-screen .correct-text')
+        .forEach(el => el.remove());
+      [term.en,...getDistractors(term.en)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
         const btn=document.createElement('div'); btn.className='option';
         btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
         btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
@@ -401,7 +399,7 @@ function getPTDistractors(correctPT) {
     }
 
     function handleMCQ(ans,btn){
-      const ok = (ans === currentTerm.pt);
+      const ok=(ans===currentTerm.en);
       // ◀ disable all buttons immediately
       mcqOptions.querySelectorAll('.option')
       .forEach(o => o.style.pointerEvents = 'none');
@@ -414,7 +412,7 @@ function getPTDistractors(correctPT) {
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
           mcqOptions.querySelectorAll('.option').forEach(o => {
-      if (o.textContent.trim().endsWith(currentTerm.pt)) {
+              if (o.textContent.trim().endsWith(currentTerm.pt)) {
                   o.style.background = '#fff69d';
               }
           });
@@ -456,7 +454,7 @@ function getPTDistractors(correctPT) {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        const fRaw = currentTerm.pt.toLowerCase();
+        const fRaw = currentTerm.en.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
@@ -507,7 +505,7 @@ function getPTDistractors(correctPT) {
         corr.className = 'correct-text';
         corr.style.background = 'yellow';
         corr.style.marginTop = '10px';
-        corr.textContent = currentTerm.pt;
+        corr.textContent = currentTerm.en;
         typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
         // Insert “I was right” override button
         overrideBtn = document.createElement('button');
@@ -531,6 +529,9 @@ function getPTDistractors(correctPT) {
           typingInput.style.backgroundColor = '#dcedc8';
           // Also make typing progress bar green
           typeBar.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--type-correct').trim();
+          // —— NEW LINES: actually record this as a correct typing
+    typeCount++;
+    learnedTyping.push(currentTerm);
           // Update progress widths
           updateProgress();
           // Proceed to next question after feedback
@@ -604,7 +605,7 @@ function getPTDistractors(correctPT) {
       const list=document.getElementById('end-list'); list.innerHTML='';
       mistakes.forEach(t=>{
         const item=document.createElement('div'); item.className='error-item';
-        item.innerHTML=`<div class="pt-box">${t.pt}</div><div class="correct-text">${t.en}</div>`;
+        item.innerHTML = `<div class="pt-box">${t.en}</div><div class="correct-text">${t.pt}</div>`;
         list.appendChild(item);
       });
     }
