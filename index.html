@@ -234,6 +234,8 @@
           alert('Failed to load ' + dataFile + ': ' + err);
 });
     let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount;
+    // Track the number of correct MCQ answers so we can trigger matching exercises after every 5
+    let mcqCount = 0;
     const startScreen=document.getElementById('start-screen'),
           quizScreen=document.getElementById('quiz-screen'),
           matchScreen=document.getElementById('match-screen'),
@@ -285,6 +287,8 @@ volumeToggle.addEventListener('click', () => {
       currentTerm=null;
       typeCount=0;
       round = 0;
+      // Reset the MCQ correct counter at the beginning of each session
+      mcqCount = 0;
       totalCountEl.textContent=terms.length;
       resetTypeBar();
       updateProgress();
@@ -312,7 +316,8 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function getDistractors(correct){
-      const pool=terms.map(t=>t.en).filter(e=>e!==correct), picks=[];
+      // Use Portuguese words as distractors instead of English now that we test EN→PT
+      const pool = terms.map(t => t.pt).filter(pt => pt !== correct), picks=[];
       while(picks.length<3){
         const v=pool[Math.floor(Math.random()*pool.length)];
         if(!picks.includes(v)) picks.push(v);
@@ -359,13 +364,18 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function renderMCQ(term){
-      currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.pt}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`; mcqOptions.innerHTML='';
+      currentTerm = term;
+      hideTyping();
+      // Display the English term and its example (if any) in the term box.
+      termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
+      mcqOptions.innerHTML = '';
       document.querySelectorAll('#quiz-screen .correct-text')
         .forEach(el => el.remove());
-      [term.en,...getDistractors(term.en)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
-        const btn=document.createElement('div'); btn.className='option';
-        btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
-        btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
+      // Present the Portuguese translation plus distractors as options
+      [term.pt, ...getDistractors(term.pt)].sort(() => Math.random() - .5).forEach((opt,i) => {
+        const btn = document.createElement('div'); btn.className = 'option';
+        btn.innerHTML = `<span class="key">${i+1}</span> ${opt}`;
+        btn.addEventListener('click', () => handleMCQ(opt, btn)); mcqOptions.appendChild(btn);
       });
     }
 
@@ -378,7 +388,18 @@ volumeToggle.addEventListener('click', () => {
       typingInput.disabled = false;
       enterBtn.disabled   = false;
       dkBtn.disabled      = false;
-      termBox.textContent=term.pt; mcqOptions.innerHTML=''; typingArea.classList.add('active');
+      // Display the English term and show the example sentence with the Portuguese answer blanked out.
+      const exampleRaw = term.example || '';
+      let blankExample = exampleRaw;
+      if (term.pt) {
+        // Escape special regex characters in the Portuguese answer before building a regex
+        const escaped = term.pt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'gi');
+        blankExample = exampleRaw.replace(regex, '___');
+      }
+      termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${blankExample}</div>`;
+      mcqOptions.innerHTML='';
+      typingArea.classList.add('active');
       dkBtn.style.display='block'; typingInput.value=''; typingInput.focus();
       scrollToQuizScreen();
 
@@ -392,7 +413,8 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function handleMCQ(ans,btn){
-      const ok=(ans===currentTerm.en);
+      // Compare the selected Portuguese answer with the correct Portuguese term
+      const ok = (ans === currentTerm.pt);
       // ◀ disable all buttons immediately
       mcqOptions.querySelectorAll('.option')
       .forEach(o => o.style.pointerEvents = 'none');
@@ -404,21 +426,33 @@ volumeToggle.addEventListener('click', () => {
           // put it back into the MCQ queue
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
-          mcqOptions.querySelectorAll('.option').forEach(o => {
-              if (o.textContent.trim().endsWith(currentTerm.en)) {
-                  o.style.background = '#fff69d';
+      mcqOptions.querySelectorAll('.option').forEach(o => {
+              // highlight the Portuguese correct answer
+              if (o.textContent.trim().endsWith(currentTerm.pt)) {
+                o.style.background = '#fff69d';
               }
           });
       } else {
           if (!learnedStage1.includes(currentTerm)) {
               learnedStage1.push(currentTerm);
           }
-
+          // schedule this term for typing later
           currentTerm._readyAt = round + 5;
           stage2Queue.push(currentTerm);
           updateProgress();
+          // increment MCQ correct counter
+          mcqCount++;
       }
-          setTimeout(() => { resetTypeBar(); nextQuestion(); }, ok ? 800 : 1700);
+      const delay = ok ? 800 : 1700;
+      setTimeout(() => {
+        resetTypeBar();
+        // After every five correct MCQ answers, launch a matching exercise
+        if (ok && mcqCount > 0 && mcqCount % 5 === 0) {
+          startMatchExercise();
+        } else {
+          nextQuestion();
+        }
+      }, delay);
     }
 
     function handleTyping(action){
@@ -428,7 +462,10 @@ volumeToggle.addEventListener('click', () => {
     'round=', round,
     'queue ready?=', stage2Queue.map(t => t._readyAt <= round)
   );
-        // ◀ disable any further typing or DK clicks
+        let nextQTimeout;
+    // make overrideBtn available throughout handleTyping
+    let overrideBtn;
+    // ◀ disable any further typing or DK clicks
         typingInput.disabled = true;
         enterBtn.disabled   = true;
         dkBtn.disabled      = true;
@@ -444,7 +481,8 @@ volumeToggle.addEventListener('click', () => {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        const fRaw = currentTerm.en.toLowerCase();
+        // Compare user input against the correct Portuguese translation
+        const fRaw = currentTerm.pt.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
@@ -498,17 +536,19 @@ volumeToggle.addEventListener('click', () => {
         corr.textContent = currentTerm.en;
         typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
         // Insert “I was right” override button
-        const overrideBtn = document.createElement('button');
+        overrideBtn = document.createElement('button');
         overrideBtn.textContent = 'I was right';
         overrideBtn.style.background = 'transparent';
         overrideBtn.style.color = 'black';
         overrideBtn.style.border = '1px solid black';
         overrideBtn.style.padding = '6px 12px';
         overrideBtn.style.borderRadius = '4px';
+        overrideBtn.style.marginTop = '10px';
         // Place button below the correct answer box
         corr.parentNode.insertBefore(overrideBtn, corr.nextSibling);
         overrideBtn.addEventListener('click', () => {
-          // Treat as correct: remove mistake, clear visuals
+          clearTimeout(nextQTimeout);
+        // Treat as correct: remove mistake, clear visuals
           const idx = mistakes.indexOf(currentTerm);
           if (idx > -1) mistakes.splice(idx, 1);
           overrideBtn.remove();
@@ -525,28 +565,20 @@ volumeToggle.addEventListener('click', () => {
             typingInput.style.backgroundColor = '';
             resetTypeBar('--type-correct');
             nextQuestion();
-          }, 800);
-        });
+          }, 2000);
+        }, { once: true });   // ← add this third argument
       } else {
         // update progress only on correct answers
         updateProgress();
       }
-      // decide whether to start match exercise
-      if (ok && typeCount > 0 && typeCount % 5 === 0) {
-        // delay match exercise to allow users to see correctness feedback
-        setTimeout(() => {
-          // clear the input background and reset bar to neutral before starting match
-          typingInput.style.backgroundColor = '';
-          resetTypeBar('--type-dk');
-          startMatchExercise();
-        }, 2000);
-        return;
-      }
+      // no match exercise is triggered on typing answers; match now occurs after MCQ answers only
       // schedule next question with appropriate delay
-      setTimeout(() => {
-        typingInput.style.backgroundColor = '';
-        nextQuestion();
-      }, ok ? 1000 : 2000);
+      nextQTimeout = setTimeout(() => {
+      // hide the "I was right" button if still visible
+      if (overrideBtn) overrideBtn.style.display = 'none';
+      typingInput.style.backgroundColor = '';
+      nextQuestion();
+    }, ok ? 1000 : 2000);
     }
 
     function nextQuestion(){
