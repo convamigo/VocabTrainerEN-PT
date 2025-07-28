@@ -412,10 +412,10 @@ volumeToggle.addEventListener('click', () => {
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
           mcqOptions.querySelectorAll('.option').forEach(o => {
-              if (o.textContent.trim().endsWith(currentTerm.pt)) {
-                  o.style.background = '#fff69d';
-              }
-          });
+     if (o.textContent.trim().endsWith(currentTerm.pt)) {
+       o.style.background = '#fff69d';
+     }
+   });
       } else {
           if (!learnedStage1.includes(currentTerm)) {
               learnedStage1.push(currentTerm);
