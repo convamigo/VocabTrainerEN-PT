@@ -454,7 +454,8 @@ volumeToggle.addEventListener('click', () => {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        const fRaw = currentTerm.en.toLowerCase();
+        // compare against Portuguese now
+ const fRaw = currentTerm.pt.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
@@ -505,7 +506,7 @@ volumeToggle.addEventListener('click', () => {
         corr.className = 'correct-text';
         corr.style.background = 'yellow';
         corr.style.marginTop = '10px';
-        corr.textContent = currentTerm.en;
+        corr.textContent = currentTerm.pt;
         typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
         // Insert “I was right” override button
         overrideBtn = document.createElement('button');
