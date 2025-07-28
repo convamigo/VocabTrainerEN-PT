@@ -234,8 +234,6 @@
           alert('Failed to load ' + dataFile + ': ' + err);
 });
     let terms, stage1Queue, learnedStage1, learnedTyping, stage2Queue, mistakes, currentTerm, typeCount;
-    // Track the number of correct MCQ answers so we can trigger matching exercises after every 5
-    let mcqCount = 0;
     const startScreen=document.getElementById('start-screen'),
           quizScreen=document.getElementById('quiz-screen'),
           matchScreen=document.getElementById('match-screen'),
@@ -287,8 +285,6 @@ volumeToggle.addEventListener('click', () => {
       currentTerm=null;
       typeCount=0;
       round = 0;
-      // Reset the MCQ correct counter at the beginning of each session
-      mcqCount = 0;
       totalCountEl.textContent=terms.length;
       resetTypeBar();
       updateProgress();
@@ -316,14 +312,24 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function getDistractors(correct){
-      // Use Portuguese words as distractors instead of English now that we test EN→PT
-      const pool = terms.map(t => t.pt).filter(pt => pt !== correct), picks=[];
+      const pool=terms.map(t=>t.en).filter(e=>e!==correct), picks=[];
       while(picks.length<3){
         const v=pool[Math.floor(Math.random()*pool.length)];
         if(!picks.includes(v)) picks.push(v);
       }
       return picks;
     }
+    
+    // Pick 3 random *Portuguese* distractors for a given correct PT term
+function getPTDistractors(correctPT) {
+  const pool = terms.map(t => t.pt).filter(pt => pt !== correctPT);
+  const picks = [];
+  while (picks.length < 3) {
+    const v = pool[Math.floor(Math.random() * pool.length)];
+    if (!picks.includes(v)) picks.push(v);
+  }
+  return picks;
+}
 
     function pickNext(){
       let mode;
@@ -364,18 +370,11 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function renderMCQ(term){
-      currentTerm = term;
-      hideTyping();
-      // Display the English term and its example (if any) in the term box.
-      termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
-      mcqOptions.innerHTML = '';
-      document.querySelectorAll('#quiz-screen .correct-text')
-        .forEach(el => el.remove());
-      // Present the Portuguese translation plus distractors as options
-      [term.pt, ...getDistractors(term.pt)].sort(() => Math.random() - .5).forEach((opt,i) => {
-        const btn = document.createElement('div'); btn.className = 'option';
-        btn.innerHTML = `<span class="key">${i+1}</span> ${opt}`;
-        btn.addEventListener('click', () => handleMCQ(opt, btn)); mcqOptions.appendChild(btn);
+      currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
++  [term.pt, ...getPTDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+        const btn=document.createElement('div'); btn.className='option';
+        btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
+        btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
       });
     }
 
@@ -388,18 +387,7 @@ volumeToggle.addEventListener('click', () => {
       typingInput.disabled = false;
       enterBtn.disabled   = false;
       dkBtn.disabled      = false;
-      // Display the English term and show the example sentence with the Portuguese answer blanked out.
-      const exampleRaw = term.example || '';
-      let blankExample = exampleRaw;
-      if (term.pt) {
-        // Escape special regex characters in the Portuguese answer before building a regex
-        const escaped = term.pt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escaped, 'gi');
-        blankExample = exampleRaw.replace(regex, '___');
-      }
-      termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${blankExample}</div>`;
-      mcqOptions.innerHTML='';
-      typingArea.classList.add('active');
+      termBox.textContent=term.en; mcqOptions.innerHTML=''; typingArea.classList.add('active');
       dkBtn.style.display='block'; typingInput.value=''; typingInput.focus();
       scrollToQuizScreen();
 
@@ -413,8 +401,7 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function handleMCQ(ans,btn){
-      // Compare the selected Portuguese answer with the correct Portuguese term
-      const ok = (ans === currentTerm.pt);
+      const ok=(ans===currentTerm.en);
       // ◀ disable all buttons immediately
       mcqOptions.querySelectorAll('.option')
       .forEach(o => o.style.pointerEvents = 'none');
@@ -426,33 +413,21 @@ volumeToggle.addEventListener('click', () => {
           // put it back into the MCQ queue
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
-      mcqOptions.querySelectorAll('.option').forEach(o => {
-              // highlight the Portuguese correct answer
-              if (o.textContent.trim().endsWith(currentTerm.pt)) {
-                o.style.background = '#fff69d';
+          mcqOptions.querySelectorAll('.option').forEach(o => {
+              if (o.textContent.trim().endsWith(currentTerm.en)) {
+                  o.style.background = '#fff69d';
               }
           });
       } else {
           if (!learnedStage1.includes(currentTerm)) {
               learnedStage1.push(currentTerm);
           }
-          // schedule this term for typing later
+
           currentTerm._readyAt = round + 5;
           stage2Queue.push(currentTerm);
           updateProgress();
-          // increment MCQ correct counter
-          mcqCount++;
       }
-      const delay = ok ? 800 : 1700;
-      setTimeout(() => {
-        resetTypeBar();
-        // After every five correct MCQ answers, launch a matching exercise
-        if (ok && mcqCount > 0 && mcqCount % 5 === 0) {
-          startMatchExercise();
-        } else {
-          nextQuestion();
-        }
-      }, delay);
+          setTimeout(() => { resetTypeBar(); nextQuestion(); }, ok ? 800 : 1700);
     }
 
     function handleTyping(action){
@@ -481,8 +456,7 @@ volumeToggle.addEventListener('click', () => {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        // Compare user input against the correct Portuguese translation
-        const fRaw = currentTerm.pt.toLowerCase();
+        const fRaw = currentTerm.en.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
@@ -533,7 +507,7 @@ volumeToggle.addEventListener('click', () => {
         corr.className = 'correct-text';
         corr.style.background = 'yellow';
         corr.style.marginTop = '10px';
-        corr.textContent = currentTerm.en;
+        corr.textContent = currentTerm.pt;
         typingArea.parentNode.insertBefore(corr, dkBtn.nextSibling);
         // Insert “I was right” override button
         overrideBtn = document.createElement('button');
@@ -571,7 +545,17 @@ volumeToggle.addEventListener('click', () => {
         // update progress only on correct answers
         updateProgress();
       }
-      // no match exercise is triggered on typing answers; match now occurs after MCQ answers only
+      // decide whether to start match exercise
+      if (ok && typeCount > 0 && typeCount % 5 === 0) {
+        // delay match exercise to allow users to see correctness feedback
+        setTimeout(() => {
+          // clear the input background and reset bar to neutral before starting match
+          typingInput.style.backgroundColor = '';
+          resetTypeBar('--type-dk');
+          startMatchExercise();
+        }, 2000);
+        return;
+      }
       // schedule next question with appropriate delay
       nextQTimeout = setTimeout(() => {
       // hide the "I was right" button if still visible
@@ -635,7 +619,7 @@ let freezeMatch = false;
 function startMatchExercise() {
   showScreen(matchScreen);
   const sliceCount = Math.min(5, learnedTyping.length);
-  matchPairs = learnedTyping.slice(-sliceCount).map(t => ({ pt: t.pt, en: t.en, matched: false }));
+  matchPairs = learnedTyping.slice(-sliceCount).map(t => ({ pt: t.en, en: t.pt, matched: false }));
   renderMatchExercise();
 }
 
