@@ -366,24 +366,14 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function renderMCQ(term){
-      currentTerm=term;
-      hideTyping();
-      // show English prompt
-      termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
-      mcqOptions.innerHTML='';
-      // remove any old correct-text
-      document.querySelectorAll('#quiz-screen .correct-text').forEach(el => el.remove());
-      // build options: correct Portuguese and Portuguese distractors
-      [term.pt, ...getDistractors(term.pt)]
-        .sort(() => Math.random() - .5)
-        .forEach((opt, i) => {
-          const btn = document.createElement('div');
-          btn.className = 'option';
-          btn.innerHTML = `<span class="key">${i+1}</span> ${opt}`;
-          btn.addEventListener('click', () => handleMCQ(opt, btn));
-          mcqOptions.appendChild(btn);
-        });
-    };
+      currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`; mcqOptions.innerHTML='';
+      document.querySelectorAll('#quiz-screen .correct-text')
+        .forEach(el => el.remove());
+      [term.en,...getDistractors(term.en)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+        const btn=document.createElement('div'); btn.className='option';
+        btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
+        btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
+      });
     }
 
     function renderTyping(term){
@@ -409,13 +399,6 @@ volumeToggle.addEventListener('click', () => {
     }
 
     function handleMCQ(ans,btn){
-      // compare selected Portuguese option to correct term.pt
-      const ok = (ans === currentTerm.pt);
-      // disable all options immediately
-      mcqOptions.querySelectorAll('.option').forEach(o => o.style.pointerEvents = 'none');
-      btn.style.background = varColor(ok ? '--correct-bg' : '--incorrect-bg');
-      playSound(ok);
-      if (!ok) {
       const ok=(ans===currentTerm.en);
       // ◀ disable all buttons immediately
       mcqOptions.querySelectorAll('.option')
