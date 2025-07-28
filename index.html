@@ -371,7 +371,7 @@ function getPTDistractors(correctPT) {
 
     function renderMCQ(term){
       currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`;
-+  [term.pt, ...getPTDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+  [term.pt, ...getPTDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
         const btn=document.createElement('div'); btn.className='option';
         btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
         btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
@@ -401,7 +401,7 @@ function getPTDistractors(correctPT) {
     }
 
     function handleMCQ(ans,btn){
-      const ok=(ans===currentTerm.en);
+      const ok = (ans === currentTerm.pt);
       // ◀ disable all buttons immediately
       mcqOptions.querySelectorAll('.option')
       .forEach(o => o.style.pointerEvents = 'none');
@@ -414,7 +414,7 @@ function getPTDistractors(correctPT) {
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
           mcqOptions.querySelectorAll('.option').forEach(o => {
-              if (o.textContent.trim().endsWith(currentTerm.en)) {
+      if (o.textContent.trim().endsWith(currentTerm.pt)) {
                   o.style.background = '#fff69d';
               }
           });
@@ -456,7 +456,7 @@ function getPTDistractors(correctPT) {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        const fRaw = currentTerm.en.toLowerCase();
+        const fRaw = currentTerm.pt.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
