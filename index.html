@@ -703,7 +703,22 @@ function shuffle(arr) {
     enterBtn.addEventListener('click', ()=>handleTyping());
     dkBtn.addEventListener('click', ()=>handleTyping('dk'));
     startBtn.addEventListener('click',()=>{startSession(); showScreen(quizScreen); nextQuestion();});
-    retryBtn.addEventListener('click',()=>{ if(mistakes.length<4){alert('Need 4+ mistakes');return;} startSession(mistakes); showScreen(quizScreen); nextQuestion(); });
+    retryBtn.addEventListener('click', () => {
+   if (mistakes.length < 4) {
+     alert('Need 4+ mistakes');
+     return;
+   }
+   // Clear the mistakes list UI instantly
+  document.getElementById('end-list').innerHTML = '';
+   // 1️⃣ Copy out the existing mistakes…
+   const retryList = mistakes.slice();
+   // 2️⃣ …then clear them so only new ones get tracked
+   mistakes = [];
+   // 3️⃣ Start the session with only the old mistakes as terms
+   startSession(retryList);
+   showScreen(quizScreen);
+   nextQuestion();
+ });
     restartBtn.addEventListener('click',()=>location.reload());
 
     // Initialize
