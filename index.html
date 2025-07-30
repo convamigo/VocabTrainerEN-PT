@@ -311,8 +311,8 @@ volumeToggle.addEventListener('click', () => {
         }
     }
 
-    function getDistractors(correct){
-        const pool = terms.map(t => t.pt).filter(e => e !== correct); picks=[];
+    function getDistractorsPT(correctPT) {
+  const pool = terms.map(t => t.pt).filter(pt => pt !== correctPT);
       while(picks.length<3){
         const v=pool[Math.floor(Math.random()*pool.length)];
         if(!picks.includes(v)) picks.push(v);
@@ -369,7 +369,7 @@ volumeToggle.addEventListener('click', () => {
       currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`; mcqOptions.innerHTML='';
       document.querySelectorAll('#quiz-screen .correct-text')
         .forEach(el => el.remove());
-     [term.pt, ...getDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+      [term.en,...getDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
         const btn=document.createElement('div'); btn.className='option';
         btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
         btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
@@ -412,10 +412,10 @@ volumeToggle.addEventListener('click', () => {
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
           mcqOptions.querySelectorAll('.option').forEach(o => {
-     if (o.textContent.trim().endsWith(currentTerm.pt)) {
-       o.style.background = '#fff69d';
-     }
-   });
+              if (o.textContent.trim().endsWith(currentTerm.en)) {
+                  o.style.background = '#fff69d';
+              }
+          });
       } else {
           if (!learnedStage1.includes(currentTerm)) {
               learnedStage1.push(currentTerm);
@@ -454,8 +454,7 @@ volumeToggle.addEventListener('click', () => {
           .replace(/[^a-z0-9 ]/g, '')
           .replace(/\s+/g, ' ').trim();
         const vRaw = typingInput.value.trim().toLowerCase();
-        // compare against Portuguese now
- const fRaw = currentTerm.pt.toLowerCase();
+        const fRaw = currentTerm.pt.toLowerCase();
         // remove parenthetical hints from the correct answer
         const sRaw = fRaw.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
         const v = sanitize(vRaw);
@@ -521,7 +520,7 @@ volumeToggle.addEventListener('click', () => {
         corr.parentNode.insertBefore(overrideBtn, corr.nextSibling);
         overrideBtn.addEventListener('click', () => {
           clearTimeout(nextQTimeout);
-        // Treat as correct: remove mistake, clear visuals
+          // Treat as correct: remove mistake, clear visuals
           const idx = mistakes.indexOf(currentTerm);
           if (idx > -1) mistakes.splice(idx, 1);
           overrideBtn.remove();
@@ -530,14 +529,30 @@ volumeToggle.addEventListener('click', () => {
           typingInput.style.backgroundColor = '#dcedc8';
           // Also make typing progress bar green
           typeBar.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--type-correct').trim();
-          // —— NEW LINES: actually record this as a correct typing
-    typeCount++;
-    learnedTyping.push(currentTerm);
+// —— NEW: record this as a correct typing
+  typeCount++;
+  learnedTyping.push(currentTerm);
+  // —— NEW: remove from typing queue so it isn’t quizzed again
+  const idx2 = stage2Queue.indexOf(currentTerm);
+  if (idx2 > -1) stage2Queue.splice(idx2, 1);
+          // —— NEW: mark ok true so batch logic applies
+          ok = true;
           // Update progress widths
           updateProgress();
+          // —— NEW: if override completes a match batch, trigger match exercise
+          if (
+            typeCount > 0 &&
+            (typeCount % 5 === 0 || (stage1Queue.length === 0 && stage2Queue.length === 0))
+          ) {
+            setTimeout(() => {
+              typingInput.style.backgroundColor = '';
+              resetTypeBar('--type-dk');
+              startMatchExercise();
+            }, 2000);
+            return;
+          }
           // Proceed to next question after feedback
           setTimeout(() => {
-            // reset input and bar
             typingInput.style.backgroundColor = '';
             resetTypeBar('--type-correct');
             nextQuestion();
@@ -547,8 +562,15 @@ volumeToggle.addEventListener('click', () => {
         // update progress only on correct answers
         updateProgress();
       }
-      // decide whether to start match exercise
-      if (ok && typeCount > 0 && typeCount % 5 === 0) {
+      // trigger match on every 5 correct typings OR when both queues are empty (final batch)
+      if (
+        ok &&
+        typeCount > 0 &&
+        (
+          typeCount % 5 === 0 ||
+          (stage1Queue.length === 0 && stage2Queue.length === 0)
+        )
+      ) {
         // delay match exercise to allow users to see correctness feedback
         setTimeout(() => {
           // clear the input background and reset bar to neutral before starting match
@@ -577,19 +599,16 @@ volumeToggle.addEventListener('click', () => {
         round++;
         hideTyping();
 
-    // — OVERRIDE: If MCQ queue is empty but there are typing items that are not learned yet,
-    //   even if their _readyAt > round, force the last one into typing rather than end.
-    if (
-      stage1Queue.length === 0 &&
-      stage2Queue.some(t => !learnedTyping.includes(t)) &&
-      // ensure at least one item is “ready” to avoid premature pulls
-      stage2Queue.some(t => !learnedTyping.includes(t) && t._readyAt <= round)
-    ) {
-      // pull the first item whose _readyAt <= round
-      const idx = stage2Queue.findIndex(t => !learnedTyping.includes(t) && t._readyAt <= round);
-      const term = stage2Queue.splice(idx,1)[0];
-      return renderTyping(term);
-    }
+    // — OVERRIDE: If MCQ queue is empty but there are typing items left, pull next typing regardless of _readyAt
+ if (
+   stage1Queue.length === 0 &&
+   stage2Queue.some(t => !learnedTyping.includes(t))
+ ) {
+   // pull the first unlearned typing item regardless of readiness
+   const idx = stage2Queue.findIndex(t => !learnedTyping.includes(t));
+   const term = stage2Queue.splice(idx, 1)[0];
+   return renderTyping(term);
+ }
       // only end if there are no unlearned typing items left
       const anyTypingLeft = stage2Queue.some(t => !learnedTyping.includes(t));
       if (!stage1Queue.length && !anyTypingLeft) {
@@ -606,7 +625,7 @@ volumeToggle.addEventListener('click', () => {
       const list=document.getElementById('end-list'); list.innerHTML='';
       mistakes.forEach(t=>{
         const item=document.createElement('div'); item.className='error-item';
-        item.innerHTML = `<div class="pt-box">${t.en}</div><div class="correct-text">${t.pt}</div>`;
+        item.innerHTML=`<div class="pt-box">${t.pt}</div><div class="correct-text">${t.en}</div>`;
         list.appendChild(item);
       });
     }
@@ -620,8 +639,13 @@ let freezeMatch = false;
 
 function startMatchExercise() {
   showScreen(matchScreen);
-  const sliceCount = Math.min(5, learnedTyping.length);
-  matchPairs = learnedTyping.slice(-sliceCount).map(t => ({ pt: t.en, en: t.pt, matched: false }));
+  // determine batch size: full 5 OR the leftover count on the final batch
+  const totalLearned = learnedTyping.length;
+  const isFinalBatch = stage1Queue.length === 0 && stage2Queue.length === 0;
+  const sliceCount = (isFinalBatch && totalLearned % 5 !== 0)
+    ? (totalLearned % 5)
+    : Math.min(5, totalLearned);
+  matchPairs = learnedTyping.slice(-sliceCount).map(t => ({ pt: t.pt, en: t.en, matched: false }));
   renderMatchExercise();
 }
 
