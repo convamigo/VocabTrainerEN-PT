@@ -313,10 +313,13 @@ volumeToggle.addEventListener('click', () => {
 
     function getDistractorsPT(correctPT) {
   const pool = terms.map(t => t.pt).filter(pt => pt !== correctPT);
-      while(picks.length<3){
-        const v=pool[Math.floor(Math.random()*pool.length)];
-        if(!picks.includes(v)) picks.push(v);
-      }
+  let picks = [];
+  while (picks.length < 3) {
+    const v = pool[Math.floor(Math.random() * pool.length)];
+    if (!picks.includes(v)) picks.push(v);
+  }
+  return picks;
+}
       return picks;
     }
 
@@ -369,7 +372,7 @@ volumeToggle.addEventListener('click', () => {
       currentTerm=term; hideTyping(); termBox.innerHTML = `<strong>${term.en}</strong><div style="font-size: 0.6em; color: #555; margin-top: 6px;">${term.example || ''}</div>`; mcqOptions.innerHTML='';
       document.querySelectorAll('#quiz-screen .correct-text')
         .forEach(el => el.remove());
-      [term.en,...getDistractors(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
+      [term.pt, ...getDistractorsPT(term.pt)].sort(()=>Math.random()-.5).forEach((opt,i)=>{
         const btn=document.createElement('div'); btn.className='option';
         btn.innerHTML=`<span class="key">${i+1}</span> ${opt}`;
         btn.addEventListener('click',()=>handleMCQ(opt,btn)); mcqOptions.appendChild(btn);
@@ -412,7 +415,7 @@ volumeToggle.addEventListener('click', () => {
           stage1Queue.unshift(currentTerm);
           // highlight the true answer in yellow
           mcqOptions.querySelectorAll('.option').forEach(o => {
-              if (o.textContent.trim().endsWith(currentTerm.en)) {
+              if (o.textContent.trim().endsWith(currentTerm.pt)) {
                   o.style.background = '#fff69d';
               }
           });
