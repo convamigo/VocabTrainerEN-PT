@@ -421,6 +421,20 @@ volumeToggle.addEventListener('click', () => {
           if (!learnedStage1.includes(currentTerm)) {
               learnedStage1.push(currentTerm);
           }
+    // —— NEW: trigger match after every 5 correct MCQs or at the very end
+        if (
+          learnedStage1.length > 0 &&
+          (
+            learnedStage1.length % 5 === 0 ||
+            (stage1Queue.length === 0 && stage2Queue.length === 0)
+          )
+        ) {
+          setTimeout(() => {
+            resetTypeBar('--type-dk');
+            startMatchExercise();
+          }, 800);  // short delay so the MCQ green feedback shows
+          return;
+        }
 
           currentTerm._readyAt = round + 5;
           stage2Queue.push(currentTerm);
@@ -539,20 +553,7 @@ volumeToggle.addEventListener('click', () => {
           // —— NEW: mark ok true so batch logic applies
           ok = true;
           // Update progress widths
-          updateProgress();
-          // —— NEW: if override completes a match batch, trigger match exercise
-          if (
-            typeCount > 0 &&
-            (typeCount % 5 === 0 || (stage1Queue.length === 0 && stage2Queue.length === 0))
-          ) {
-            setTimeout(() => {
-              typingInput.style.backgroundColor = '';
-              resetTypeBar('--type-dk');
-              startMatchExercise();
-            }, 2000);
-            return;
-          }
-          // Proceed to next question after feedback
+          updateProgress();          // Proceed to next question after feedback
           setTimeout(() => {
             typingInput.style.backgroundColor = '';
             resetTypeBar('--type-correct');
@@ -563,24 +564,7 @@ volumeToggle.addEventListener('click', () => {
         // update progress only on correct answers
         updateProgress();
       }
-      // trigger match on every 5 correct typings OR when both queues are empty (final batch)
-      if (
-        ok &&
-        typeCount > 0 &&
-        (
-          typeCount % 5 === 0 ||
-          (stage1Queue.length === 0 && stage2Queue.length === 0)
-        )
-      ) {
-        // delay match exercise to allow users to see correctness feedback
-        setTimeout(() => {
-          // clear the input background and reset bar to neutral before starting match
-          typingInput.style.backgroundColor = '';
-          resetTypeBar('--type-dk');
-          startMatchExercise();
-        }, 2000);
-        return;
-      }
+
       // schedule next question with appropriate delay
       nextQTimeout = setTimeout(() => {
       // hide the "I was right" button if still visible
@@ -739,3 +723,4 @@ function shuffle(arr) {
   </div>
 </body>
 </html>
+
